@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syunik Places | Zangezur Explorer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f2f5f7;
+      scroll-behavior: smooth;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0b3d2e, #145a43);
+      color: white;
+      text-align: center;
+      padding: 30px;
+    }
+
+    header h1 { font-size: 34px; margin-bottom: 6px; }
+    header p  { opacity: .85; font-size: 15px; }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      background: #145a43;
+      padding: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    nav a {
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: .3s;
+      background: rgba(255,255,255,.15);
+    }
+
+    nav a:hover { background: rgba(255,255,255,.3); }
+
+    .section { padding: 50px 8%; }
+
+    /* DB Places Grid */
+    .db-places {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 22px;
+      margin-bottom: 50px;
+    }
+
+    .place-card {
+      background: white;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0,0,0,.1);
+      transition: .3s;
+    }
+
+    .place-card:hover { transform: translateY(-6px); box-shadow: 0 10px 28px rgba(0,0,0,.15); }
+
+    .place-card img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }
+
+    .place-card-body { padding: 18px; }
+    .place-card h3 { color: #0b3d2e; margin-bottom: 6px; }
+    .place-card .category {
+      display: inline-block;
+      background: #dcfce7;
+      color: #14532d;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .place-card p { color: #64748b; font-size: 13px; line-height: 1.5; }
+    .place-card .location { color: #94a3b8; font-size: 12px; margin-top: 6px; }
+
+    .stars { color: #f59e0b; font-size: 13px; margin-top: 4px; }
+
+    /* Static city cards */
+    .city-card {
+      background: white;
+      padding: 28px;
+      margin-bottom: 30px;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      border-left: 6px solid #145a43;
+    }
+
+    .city-card h2 { color: #0b3d2e; margin-bottom: 14px; }
+    .city-card h3 { color: #145a43; margin: 18px 0 8px; font-size: 16px; }
+
+    .city-card ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .city-card ul li {
+      padding: 4px 0 4px 18px;
+      color: #475569;
+      position: relative;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .city-card ul li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #145a43;
+    }
+
+    .city-card p { color: #475569; line-height: 1.7; font-size: 14px; margin-bottom: 6px; }
+
+    .back-btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 8px 18px;
+      background: #0b3d2e;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      transition: .2s;
+    }
+
+    .back-btn:hover { background: #145a43; }
+
+    /* Sights map section */
+    .sights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .sight-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      transition: .3s;
+    }
+
+    .sight-card:hover { transform: translateY(-4px); }
+    .sight-card h3 { color: #0b3d2e; margin-bottom: 8px; }
+    .sight-card .type-badge {
+      display: inline-block;
+      background: #f0fdf4;
+      color: #166534;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .sight-card p { color: #64748b; font-size: 13px; line-height: 1.5; }
+
+    .map-btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 7px 16px;
+      background: #0b3d2e;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: .2s;
+    }
+
+    .map-btn:hover { background: #145a43; }
+
+    #map {
+      height: 500px;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.12);
+      margin-bottom: 50px;
+    }
+
+    .section-heading {
+      font-size: 26px;
+      color: #0b3d2e;
+      margin-bottom: 22px;
+      border-left: 5px solid #145a43;
+      padding-left: 14px;
+    }
+
+    footer {
+      background: #0b3d2e;
+      color: white;
+      text-align: center;
+      padding: 22px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Syunik Places & Attractions</h1>
+  <p>Detailed Places &amp; Attractions of Syunik Province</p>
+</header>
+
+<nav>
+ <a href="{{ url_for('home') }}">Home</a>
+<a href="{{ url_for('tourism') }}">Tourism</a>
+<a href="{{ url_for('places') }}">Places</a>
+<a href="{{ url_for('chat_page') }}">AI Chatbot</a>
+  <a href="#sisian">Sisian</a>
+  <a href="#goris">Goris</a>
+  <a href="#meghri">Meghri</a>
+</nav>
+
+<div class="section">
+  <h2 class="section-heading">🌟 Featured Places</h2>
+  <div class="db-places">
+
+    <!-- Vahanavank -->
+    <div class="place-card">
+      <a href="https://en.wikipedia.org/wiki/Vahanavank" target="_blank" rel="noopener">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6e/Vahanavank_Monastery_%289%29.jpg"
+             alt="Vahanavank Monastery"
+             onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/3/31/%D5%8E%D5%A1%D5%B0%D5%A1%D5%B6%D5%A1%D5%BE%D5%A1%D5%B6%D6%84_114.jpg'">
+      </a>
+      <div class="place-card-body">
+        <span class="category">Monastery</span>
+        <h3><a href="https://en.wikipedia.org/wiki/Vahanavank" target="_blank" rel="noopener">Vahanavank Monastery</a></h3>
+        <p>
+          A medieval Armenian monastery from the 10th–11th centuries located near Kapan.
+          It was founded by Prince Vahan and became an important spiritual center in Syunik.
+        </p>
+        <p class="location">📍 Near Kapan, Syunik Province</p>
+        <p class="stars">⭐⭐⭐⭐⭐ 4.8/5</p>
+      </div>
+    </div>
+
+    <!-- Vorotnavank -->
+    <div class="place-card">
+      <a href="https://en.wikipedia.org/wiki/Vorotnavank" target="_blank" rel="noopener">
+        <img src="https://hyurservice.com/images/attractions/1/16118307659655/860x460.webp"
+             alt="Vorotnavank Monastery"
+             onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400'">
+      </a>
+      <div class="place-card-body">
+        <span class="category">Monastery</span>
+        <h3><a href="https://en.wikipedia.org/wiki/Vorotnavank" target="_blank" rel="noopener">Vorotnavank Monastery</a></h3>
+        <p>
+          A historic monastic complex from the 10th–15th centuries perched above the
+          Vorotan Gorge between Vaghatin and Vorotan villages in Syunik.
+        </p>
+        <p class="location">📍 Vorotan &amp; Vaghatin area, Syunik</p>
+        <p class="stars">⭐⭐⭐⭐⭐ 4.7/5</p>
+      </div>
+    </div>
+
+    <!-- Bekh Anapat -->
+    <div class="place-card">
+      <a href="https://hy.wikipedia.org/wiki/%D4%B2%D5%A5%D5%AD%D5%AB_%D5%A1%D5%B6%D5%A1%D5%BA%D5%A1%D5%BF" target="_blank" rel="noopener">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Bekhi_anapat_%28Bexi_Anapat%2C_Tandzatarap%29.jpg/330px-Bekhi_anapat_%28Bexi_Anapat%2C_Tandzatarap%29.jpg"
+             alt="Bekh Anapat"
+             onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400'">
+      </a>
+      <div class="place-card-body">
+        <span class="category">Heritage Site</span>
+        <h3><a href="https://hy.wikipedia.org/wiki/%D4%B2%D5%A5%D5%AD%D5%AB_%D5%A1%D5%B6%D5%A1%D5%BA%D5%A1%D5%BF" target="_blank" rel="noopener">Bekh Anapat</a></h3>
+        <p>
+          A medieval hermitage (anapat) situated about 4 km southeast of Bekh village near Kapan.
+          Features a historic church and monastic structures rebuilt in the 17th century.
+        </p>
+        <p class="location">📍 Bekh Village, Syunik Province</p>
+        <p class="stars">⭐⭐⭐⭐⭐ 4.6/5</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Interactive Sights Map -->
+<div class="section">
+  <h2 class="section-heading">🗺️ Explore Sights on the Map</h2>
+  <div class="sights-grid" id="sights-container"></div>
+  <div id="map"></div>
+</div>
+
+<!-- Detailed City Guides -->
+<div class="section">
+  <h2 class="section-heading">📖 City Guides</h2>
+
+  <div id="sisian" class="city-card">
+    <h2>Sisian — The Ancient Gateway</h2>
+    <p><strong>Elevation:</strong> 1,600 m &nbsp;|&nbsp; 210 km from Yerevan</p>
+
+    <h3>History &amp; Heritage</h3>
+    <ul>
+      <li>Zorats Karer (Carahunge) — "Armenian Stonehenge"</li>
+      <li>Sisian Church (St. Gregory of Sisavan) — 7th-century domed-cross church</li>
+      <li>Aghitu Memorial — 6th–7th century funerary monument</li>
+      <li>Vorotnavank Monastery — 10th–11th centuries</li>
+    </ul>
+
+    <h3>Natural Attractions</h3>
+    <ul>
+      <li>Shaki Waterfall — 18 m cascade</li>
+      <li>Ughtasar Petroglyphs — 5,000-year-old rock carvings</li>
+      <li>Tolors Reservoir</li>
+      <li>Shamb Hot Springs</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Minibuses to Yerevan (3.5–4h), Goris (45 min), Kapan (1.5–2h), and Jermuk (1h).</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+
+  <div id="goris" class="city-card">
+    <h2>Goris — Cultural &amp; Architectural Hub</h2>
+    <p><strong>Elevation:</strong> 1,370 m &nbsp;|&nbsp; 240 km from Yerevan</p>
+
+    <h3>History &amp; Heritage</h3>
+    <ul>
+      <li>Old Goris (Kores) — cave dwellings</li>
+      <li>St. Hripsime Church — 4th century</li>
+      <li>St. Gregory the Illuminator Church — late 19th century</li>
+      <li>Amulsar Fortress</li>
+    </ul>
+
+    <h3>Natural Attractions</h3>
+    <ul>
+      <li>Rock Forest</li>
+      <li>Mount Didbe</li>
+      <li>Vararak River</li>
+      <li>Khndzoresk — swinging bridge &amp; cave village</li>
+    </ul>
+
+    <h3>Culture &amp; Education</h3>
+    <ul>
+      <li>Aksel Bakunts House-Museum</li>
+      <li>Goris Geological Museum</li>
+      <li>Goris State University</li>
+      <li>Goris Dramatic Theater</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Minibuses to Yerevan (4–5h), Kapan (1.5h), Tatev (30 min), Sisian (45 min).</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+
+  <div id="meghri" class="city-card">
+    <h2>Meghri — Armenia's Tropical Oasis</h2>
+    <p><strong>Elevation:</strong> 600 m &nbsp;|&nbsp; 376 km from Yerevan</p>
+
+    <h3>History &amp; Heritage</h3>
+    <ul>
+      <li>Meghri Fortress (10th–11th centuries)</li>
+      <li>St. Hovhannes Mkrtich Church (17th century)</li>
+      <li>St. Astvatsatsin Church (17th century)</li>
+      <li>Shvanidzor Aqueduct (17th century)</li>
+    </ul>
+
+    <h3>Natural Attractions</h3>
+    <ul>
+      <li>Arevik National Park</li>
+      <li>Araks River Valley</li>
+      <li>Lichk Waterfalls</li>
+      <li>Giant Plane Tree</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Shared minibuses to Yerevan (7–9h), Agarak (15 min), Kapan (1.5–2h).</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+
+  <div id="kajaran" class="city-card">
+    <h2>Kajaran — Mining &amp; Mountain Adventure</h2>
+    <p><strong>Elevation:</strong> 1,950 m &nbsp;|&nbsp; 356 km from Yerevan</p>
+
+    <h3>History &amp; Heritage</h3>
+    <ul>
+      <li>ZCMC — Zangezur Copper &amp; Molybdenum Combine (est. 1952)</li>
+      <li>Napat Fortress</li>
+      <li>Baghaberd Fortress</li>
+      <li>Bronze Age settlements &amp; pagan temples</li>
+    </ul>
+
+    <h3>Natural Attractions</h3>
+    <ul>
+      <li>Mount Kaputjugh (3,905 m)</li>
+      <li>Lake Kaputan</li>
+      <li>Zangezur Sanctuary</li>
+      <li>Voghji River</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Via Kapan; 6.5–8h to Yerevan. Kapan: 30–40 min; Meghri: ~1.5h.</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+
+  <div id="dastakert" class="city-card">
+    <h2>Dastakert — High-Altitude Retreat</h2>
+    <p><strong>Elevation:</strong> 2,050 m &nbsp;|&nbsp; 225 km south of Yerevan</p>
+
+    <h3>Attractions</h3>
+    <ul>
+      <li>Mount Ayri hiking routes</li>
+      <li>Alpine meadows and wildflowers</li>
+      <li>Local honey tasting</li>
+      <li>Medieval cemetery &amp; khachkars</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Private taxi from Sisian (45–60 min). No direct public transport from Yerevan.</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+
+  <div id="agarak" class="city-card">
+    <h2>Agarak — Southern Gateway</h2>
+    <p><strong>Elevation:</strong> 600 m &nbsp;|&nbsp; 380 km from Yerevan</p>
+
+    <h3>Attractions</h3>
+    <ul>
+      <li>Arevik National Park access point</li>
+      <li>Araks River and subtropical orchards</li>
+      <li>Agarak Copper-Molybdenum Combine</li>
+      <li>Cross-border proximity to Iran</li>
+    </ul>
+
+    <h3>Transport &amp; Access</h3>
+    <p>Minibuses to Yerevan (7–9h), Meghri (10 min), Kapan (1.5–2h).</p>
+    <a href="#top" class="back-btn">↑ Back to Top</a>
+  </div>
+</div>
+
+<footer>© 2026 Zangezur Explorer | Syunik Province Tourism</footer>
+
+<script>
+  // Sights data
+  const sights = [
+    { name: "Tatev Monastery",       type: "Historical",  desc: "9th-century monastery above Vorotan Gorge.", coords: [39.3803, 46.2487], link: "https://en.wikipedia.org/wiki/Tatev_Monastery" },
+    { name: "Wings of Tatev",        type: "Attraction",  desc: "World's longest reversible cable car (5.7 km).", coords: [39.3780, 46.2600], link: "https://en.wikipedia.org/wiki/Wings_of_Tatev" },
+    { name: "Zorats Karer",          type: "Historical",  desc: "Prehistoric stone circle — Armenian Stonehenge.", coords: [39.5265, 46.0342], link: "https://en.wikipedia.org/wiki/Carahunge" },
+    { name: "Old Khndzoresk",        type: "Historical",  desc: "Ancient cave settlement with 160 m suspension bridge.", coords: [39.5001, 46.3360], link: "" },
+    { name: "Shaki Waterfall",       type: "Nature",      desc: "18 m cascade near Sisian over basalt cliffs.", coords: [39.5275, 46.0467], link: "https://en.wikipedia.org/wiki/Shaki_Waterfall" },
+    { name: "Ughtasar Petroglyphs",  type: "Nature",      desc: "5,000-year-old rock carvings on Mt. Ughtasar.", coords: [39.6000, 46.0500], link: "" },
+    { name: "Vorotan Canyon",        type: "Nature",      desc: "Dramatic gorge with the natural Devil's Bridge arch.", coords: [39.6800, 46.3600], link: "" },
+    { name: "Khustup Mountain",      type: "Nature",      desc: "3,206 m peak — popular hiking destination near Kapan.", coords: [39.1500, 46.2000], link: "" },
+    { name: "Shikahogh State Reserve", type: "Nature",    desc: "Forest reserve home to the Caucasian leopard.", coords: [39.5000, 46.4000], link: "" },
+    { name: "Arevik National Park",  type: "Nature",      desc: "Biodiversity hotspot in subtropical southern Syunik.", coords: [38.9200, 46.2400], link: "" },
+  ];
+
+  // Populate cards
+  const container = document.getElementById('sights-container');
+  sights.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'sight-card';
+    card.innerHTML = `
+      <span class="type-badge">${s.type}</span>
+      <h3>${s.name}</h3>
+      <p>${s.desc}</p>
+      <button class="map-btn" onclick="goToSight([${s.coords}], '${s.name}')">📍 View on Map</button>
+      ${s.link ? `<p style="margin-top:8px;font-size:12px;"><a href="${s.link}" target="_blank" style="color:#145a43;">More info ↗</a></p>` : ''}
+    `;
+    container.appendChild(card);
+  });
+
+  // Leaflet
+  const map = L.map('map').setView([39.5, 46.2], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Add all markers
+  sights.forEach(s => {
+    L.marker(s.coords).addTo(map).bindPopup(`<b>${s.name}</b><br><small>${s.type}</small>`);
+  });
+
+  let activeMarker;
+  function goToSight(coords, name) {
+    if (activeMarker) map.removeLayer(activeMarker);
+    map.setView(coords, 13);
+    activeMarker = L.marker(coords).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+    document.getElementById('map').scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>

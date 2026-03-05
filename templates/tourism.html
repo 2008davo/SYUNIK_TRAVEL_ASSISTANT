@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syunik Tourism Guide</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f2f5f7;
+      scroll-behavior: smooth;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0b3d2e, #145a43);
+      color: white;
+      text-align: center;
+      padding: 30px;
+    }
+
+    header h1 { font-size: 36px; margin-bottom: 6px; }
+    header p  { opacity: .85; font-size: 16px; }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      background: #145a43;
+      padding: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    nav a {
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: .3s;
+      background: rgba(255,255,255,.15);
+    }
+
+    nav a:hover { background: rgba(255,255,255,.3); }
+
+    .section { padding: 50px 8%; }
+
+    /* Highlights from DB */
+    .highlights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 50px;
+    }
+
+    .highlight-card {
+      background: white;
+      padding: 24px;
+      border-radius: 14px;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      transition: .3s;
+    }
+
+    .highlight-card:hover { transform: translateY(-5px); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+    .highlight-card .icon { font-size: 38px; margin-bottom: 10px; }
+    .highlight-card h3 { color: #0b3d2e; margin-bottom: 8px; }
+    .highlight-card p  { color: #64748b; font-size: 14px; line-height: 1.5; }
+
+    /* City grid */
+    .city-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 22px;
+    }
+
+    .card {
+      background: white;
+      padding: 22px;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      transition: .3s;
+    }
+
+    .card:hover { transform: translateY(-5px); }
+    .card h3 { color: #0b3d2e; margin-bottom: 8px; }
+    .card p  { color: #475569; line-height: 1.6; font-size: 14px; }
+
+    .map-btn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 18px;
+      background: linear-gradient(135deg, #0b3d2e, #145a43);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: .2s;
+    }
+
+    .map-btn:hover { opacity: .85; transform: translateY(-1px); }
+
+    #map {
+      height: 450px;
+      border-radius: 14px;
+      margin-top: 30px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    }
+
+    .city-info {
+      background: white;
+      padding: 30px;
+      margin-bottom: 30px;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      border-left: 6px solid #145a43;
+    }
+
+    .city-info h2 { color: #0b3d2e; margin-bottom: 12px; }
+    .city-info p  { color: #475569; line-height: 1.7; margin-bottom: 8px; }
+    .city-info strong { color: #0b3d2e; }
+
+    .section-heading {
+      font-size: 26px;
+      color: #0b3d2e;
+      margin-bottom: 20px;
+      border-left: 5px solid #145a43;
+      padding-left: 14px;
+    }
+
+    .contact-form {
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.09);
+      max-width: 600px;
+      margin: auto;
+    }
+
+    .contact-form input,
+    .contact-form textarea {
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
+      font-size: 15px;
+      font-family: inherit;
+      transition: border-color .3s;
+    }
+
+    .contact-form input:focus,
+    .contact-form textarea:focus { outline: none; border-color: #145a43; }
+
+    .contact-form button {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #0b3d2e, #145a43);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      transition: .3s;
+    }
+
+    .contact-form button:hover { opacity: .88; }
+
+    footer {
+      background: #0b3d2e;
+      color: white;
+      text-align: center;
+      padding: 22px;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Syunik Tourism Guide</h1>
+  <p>Complete Tourism Guide — Syunik Province, Armenia</p>
+</header>
+
+<nav>
+  <a href="{{ url_for('home') }}">Home</a>
+<a href="{{ url_for('tourism') }}">Tourism</a>
+<a href="{{ url_for('places') }}">Places</a>
+<a href="{{ url_for('chat_page') }}">AI Chatbot</a>
+</nav>
+
+<!-- Tourism Highlights from DB -->
+<div class="section">
+  <h2 class="section-heading">Why Visit Syunik?</h2>
+  <div class="highlights-grid">
+
+    <div class="highlight-card">
+      <div class="icon">⛪</div>
+      <h3>Ancient monasteries</h3>
+      <p>
+        Syunik is home to some of Armenia's most stunning monasteries, like Tatev,Vahanavank  and Vorotnavank, set in dramatic mountain landscapes.
+      </p>
+    </div>
+
+    <div class="highlight-card">
+      <div class="icon">🌲</div>
+      <h3>Forest Landscapes</h3>
+      <p>
+        Peaceful green forests and fresh mountain air create the perfect
+        atmosphere for relaxation and hiking.
+      </p>
+    </div>
+
+    <div class="highlight-card">
+      <div class="icon">📸</div>
+      <h3>Panoramic Views</h3>
+      <p>
+        Capture breathtaking views of valleys, hills, and medieval architecture.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+  <!-- City selection -->
+  <h2 class="section-heading">Explore Cities</h2>
+  <div class="city-grid">
+    <div class="card">
+      <h3>🏙️ Goris</h3>
+      <p>Cultural capital of Syunik. Cave dwellings, rock formations, and gateway to Tatev.</p>
+      <button class="map-btn" onclick="goToCity('gorishub', 39.5111, 46.3383)">View on Map</button>
+    </div>
+    <div class="card">
+      <h3>🗿 Sisian</h3>
+      <p>Home of Zorats Karer (Armenian Stonehenge) and Shaki Waterfall. A cultural treasure.</p>
+      <button class="map-btn" onclick="goToCity('sisianhub', 39.5203, 46.0414)">View on Map</button>
+    </div>
+    <div class="card">
+      <h3>🌴 Meghri</h3>
+      <p>Armenia's subtropical oasis. Pomegranates, figs, and Arevik National Park.</p>
+      <button class="map-btn" onclick="goToCity('meghrihub', 38.9023, 46.2446)">View on Map</button>
+    </div>
+    <div class="card">
+      <h3>⛏️ Kajaran</h3>
+      <p>High-altitude mining town. Mount Kaputjugh (3,905 m) and alpine Lake Kaputan.</p>
+      <button class="map-btn" onclick="goToCity('kajaranhub', 39.1515, 46.1627)">View on Map</button>
+    </div>
+    <div class="card">
+      <h3>🌿 Agarak</h3>
+      <p>Southernmost gateway of Armenia, rich in subtropical fruit orchards.</p>
+      <button class="map-btn" onclick="goToCity('agarakhub', 38.9028, 46.2347)">View on Map</button>
+    </div>
+    <div class="card">
+      <h3>🏔️ Dastakert</h3>
+      <p>High-altitude village at 2,050 m. Honey tasting and mountain wilderness.</p>
+      <button class="map-btn" onclick="goToCity('dastakerthub', 39.3833, 45.9167)">View on Map</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<!-- Detailed City Info -->
+<div class="section">
+  <h2 class="section-heading">City Guides</h2>
+
+  <div id="gorishub" class="city-info">
+    <h2>Goris — Cultural Center of Syunik</h2>
+    <p><strong>Elevation:</strong> 1,370 m &nbsp;|&nbsp; <strong>Distance from Yerevan:</strong> 240 km</p>
+    <p>Known for Old Goris cave dwellings, Rock Forest formations, St. Gregory Cathedral, and as the gateway to Tatev Monastery. The 19th-century grid-planned streets make it one of Armenia's most walkable cities.</p>
+    <p><strong>Transport:</strong> Daily minibuses to Yerevan (4–5h), Sisian (45 min), Kapan (1.5h).</p>
+  </div>
+
+  <div id="sisianhub" class="city-info">
+    <h2>Sisian — The Ancient Gateway</h2>
+    <p><strong>Elevation:</strong> 1,600 m &nbsp;|&nbsp; <strong>Distance from Yerevan:</strong> 210 km</p>
+    <p>Home of Zorats Karer (Armenian Stonehenge), Shaki Waterfall, Vorotnavank Monastery, and the Ughtasar Petroglyphs. A major archaeological and hiking destination.</p>
+    <p><strong>Transport:</strong> 3.5–4 h to Yerevan, 45 min to Goris.</p>
+  </div>
+
+  <div id="meghrihub" class="city-info">
+    <h2>Meghri — Armenia's Tropical Oasis</h2>
+    <p><strong>Elevation:</strong> 600 m &nbsp;|&nbsp; <strong>Distance from Yerevan:</strong> 376 km</p>
+    <p>Famous for pomegranates, figs, Meghri Fortress, St. Hovhannes Church, Arevik National Park, and Silk Road heritage.</p>
+    <p><strong>Transport:</strong> 7–9 h to Yerevan, 15 min to Agarak.</p>
+  </div>
+
+  <div id="kajaranhub" class="city-info">
+    <h2>Kajaran — Mining &amp; Mountains</h2>
+    <p><strong>Elevation:</strong> 1,950 m</p>
+    <p>Home to the Zangezur Copper-Molybdenum Combine (ZCMC), Mount Kaputjugh (3,905 m), Lake Kaputan, and superb alpine hiking routes.</p>
+    <p><strong>Transport:</strong> 6–8 h to Yerevan via Kapan.</p>
+  </div>
+
+  <div id="agarakhub" class="city-info">
+    <h2>Agarak — Southern Gate</h2>
+    <p><strong>Elevation:</strong> 600 m</p>
+    <p>Border trade hub with Iran, subtropical orchards, and direct access to Arevik National Park and the Araks River valley.</p>
+    <p><strong>Transport:</strong> 7–9 h to Yerevan, 10 min to Meghri.</p>
+  </div>
+
+  <div id="dastakerthub" class="city-info">
+    <h2>Dastakert — High-Altitude Village</h2>
+    <p><strong>Elevation:</strong> 2,050 m</p>
+    <p>Former industrial settlement with medieval cemeteries, Mount Ayri hiking routes, and local honey production in the pristine alpine environment.</p>
+    <p><strong>Transport:</strong> 45–60 min by private taxi from Sisian.</p>
+  </div>
+</div>
+
+<!-- Contact -->
+<div id="contact" class="section">
+  <h2 class="section-heading">Contact Us</h2>
+  <div class="contact-form">
+    <form id="contactForm">
+      <input type="text" placeholder="Your Name" required>
+      <input type="email" placeholder="Your Email" required>
+      <textarea rows="5" placeholder="Your Message" required></textarea>
+      <button type="submit" id="sendBtn">Send Message</button>
+    </form>
+  </div>
+</div>
+
+<footer>© 2026 Zangezur Explorer | Full Syunik Tourism Guide</footer>
+
+<script>
+  // Leaflet Map
+  const map = L.map('map').setView([39.3, 46.2], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  let marker;
+  function goToCity(sectionId, lat, lng) {
+    if (marker) map.removeLayer(marker);
+    map.setView([lat, lng], 12);
+    marker = L.marker([lat, lng]).addTo(map);
+    map.getContainer().scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+    }, 600);
+  }
+
+  // Contact form
+  document.getElementById('contactForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('sendBtn');
+    btn.textContent = '✅ Message Sent!';
+    btn.disabled = true;
+    setTimeout(() => {
+  btn.textContent = 'Send Message';
+  btn.disabled = false;
+  document.getElementById('contactForm').reset();
+}, 3000);
+  });
+</script>
+</body>
+</html>

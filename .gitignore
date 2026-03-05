@@ -1,0 +1,15 @@
+my_gpt2_qa_model.pkl
+455974143_8256868621.jpg.webp
+__pycache__/
+.env
+.DS_Store 
+rag_tourism.db
+-2025.05_/320/242/320/260/321/202/320/265/320/262/321/201/320/272/320/270/320/271_/320/274/320/276/320/275/320/260/321/201/321/202/321/213/321/200/321/214_1.jpg
+KapanGareginNzhdeh.jpg
+ZoracQarer_01.jpg
+images (1).jpg
+images (2).jpg
+images (3).jpg 
+
+
+.gitignore AI/ app.py data/ data_processor.py db.py images.jpg requirements.txt seed_embeddings.py templates/

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syunik AI Travel Chatbot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      color: #1a202c;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
+      color: white;
+      padding: 36px 20px;
+      text-align: center;
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      box-shadow: 0 8px 24px rgba(3,105,161,.3);
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      background: rgba(255,255,255,.97);
+      padding: 14px;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    }
+
+    nav a {
+      padding: 11px 26px;
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: white;
+      border-radius: 25px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all .3s;
+      box-shadow: 0 3px 10px rgba(3,105,161,.2);
+    }
+
+    nav a:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(3,105,161,.4); }
+
+    .chat-container {
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 20px 40px;
+    }
+
+    .section-title {
+      font-size: 26px;
+      margin-bottom: 18px;
+      color: white;
+      border-left: 6px solid #0ea5e9;
+      padding-left: 16px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 20px;
+      padding-left: 22px;
+    }
+
+    #chatbox {
+      height: 460px;
+      overflow-y: auto;
+      border-radius: 16px;
+      padding: 22px;
+      background: white;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.12);
+      border: 1px solid #e2e8f0;
+      scroll-behavior: smooth;
+    }
+
+    .msg {
+      padding: 12px 16px;
+      border-radius: 14px;
+      margin-bottom: 12px;
+      max-width: 75%;
+      line-height: 1.6;
+      font-size: 14px;
+      word-wrap: break-word;
+      animation: fadeIn .3s ease;
+    }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    .bot {
+      background: #f1f5f9;
+      color: #1e293b;
+      border-bottom-left-radius: 4px;
+    }
+
+    .me {
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: white;
+      margin-left: auto;
+      text-align: right;
+      border-bottom-right-radius: 4px;
+    }
+
+    .typing {
+      background: #f1f5f9;
+      color: #64748b;
+      font-style: italic;
+      max-width: 140px;
+    }
+
+    #inputArea {
+      display: flex;
+      gap: 12px;
+    }
+
+    #userMsg {
+      flex: 1;
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 2px solid #e2e8f0;
+      font-size: 15px;
+      font-family: inherit;
+      transition: all .3s;
+    }
+
+    #userMsg:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14,165,233,.12);
+    }
+
+    #sendBtn {
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #0369a1, #0ea5e9);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all .3s;
+      box-shadow: 0 4px 12px rgba(3,105,161,.25);
+      min-width: 90px;
+    }
+
+    #sendBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(3,105,161,.4); }
+    #sendBtn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    .suggestions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .suggestion-btn {
+      padding: 7px 14px;
+      background: rgba(255,255,255,.12);
+      color: #e2e8f0;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all .25s;
+    }
+
+    .suggestion-btn:hover { background: rgba(255,255,255,.22); color: white; }
+  </style>
+</head>
+<body>
+
+<header>🤖 Syunik AI Travel Assistant</header>
+
+<nav>
+  <a href="{{ url_for('home') }}">Home</a>
+<a href="{{ url_for('tourism') }}">Tourism</a>
+<a href="{{ url_for('places') }}">Places</a>
+<a href="{{ url_for('chat_page') }}">AI Chatbot</a>
+</nav>
+
+<div class="chat-container">
+  <h2 class="section-title">AI Travel Assistant</h2>
+  <p class="subtitle">Powered by GPT-2 + RAG knowledge base about Syunik Province</p>
+
+  <div class="suggestions">
+    <button class="suggestion-btn" onclick="ask('How do I get to Tatev Monastery?')">🏰 Getting to Tatev</button>
+    <button class="suggestion-btn" onclick="ask('What is Zorats Karer?')">🗿 Zorats Karer</button>
+    <button class="suggestion-btn" onclick="ask('Tell me about Shaki Waterfall')">💧 Shaki Waterfall</button>
+    <button class="suggestion-btn" onclick="ask('Best time to visit Syunik')">📅 Best time to visit</button>
+    <button class="suggestion-btn" onclick="ask('What is the Wings of Tatev cable car?')">🚡 Wings of Tatev</button>
+  </div>
+
+  <div id="chatbox">
+    <div class="msg bot">
+      👋 Hello! I'm your Syunik travel guide. Ask me anything about Tatev Monastery, Zorats Karer, Shaki Waterfall, hiking routes, local cities, or how to get around Syunik Province!
+    </div>
+  </div>
+
+  <div id="inputArea">
+    <input id="userMsg" placeholder="Ask about Syunik…" onkeypress="if(event.key==='Enter') sendMessage()" autofocus>
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+  function ask(text) {
+    document.getElementById("userMsg").value = text;
+    sendMessage();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById("userMsg");
+    const btn   = document.getElementById("sendBtn");
+    const text  = input.value.trim();
+    if (!text) return;
+
+    const box = document.getElementById("chatbox");
+
+    // Show user message
+    box.innerHTML += `<div class='msg me'>${escapeHtml(text)}</div>`;
+    input.value = "";
+    btn.disabled = true;
+    btn.textContent = "…";
+
+    // Show typing indicator
+    const typingId = "typing-" + Date.now();
+    box.innerHTML += `<div class='msg bot typing' id='${typingId}'>Thinking…</div>`;
+    box.scrollTop = box.scrollHeight;
+
+    try {
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+      });
+
+      const data = await response.json();
+      document.getElementById(typingId)?.remove();
+
+      const reply = data.reply || data.answer || "Sorry, I couldn't generate a response.";
+      box.innerHTML += `<div class='msg bot'>${escapeHtml(reply)}</div>`;
+
+    } catch (err) {
+      document.getElementById(typingId)?.remove();
+      box.innerHTML += `<div class='msg bot' style='color:#dc2626;'>⚠️ Server error. Make sure Flask is running.</div>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Send";
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>
