@@ -4,3 +4,5 @@ numpy>=1.26
 torch>=2.0
 transformers>=4.40
 openai>=1.30   
+peft
+

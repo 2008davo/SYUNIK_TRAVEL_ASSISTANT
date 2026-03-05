@@ -10,6 +10,9 @@ import textwrap
 import hashlib
 from typing import List
 import numpy as np
+from AI.model import Assistant
+
+ASSISTANT = Assistant()
 
 # ── Simple TF-IDF style embedding (no external models, no threading issues) ───
 
@@ -144,75 +147,9 @@ class DataProcessor:
     # ── Generation ────────────────────────────────────────────────────────────
 
     def generate_answer(self, question: str, context: str) -> str:
-        tokenizer, model, device = _get_gpt2()
+        return ASSISTANT.answer_question(question=question, context=context)
 
-        if model:
-            print(f"[INFO] Generating answer with GPT-2 for question: '{question}'")
-            return self._generate_gpt2(question, context, tokenizer, model, device)
-
-        print(f"[INFO] Generating answer with template for question: '{question}'")
-        return self._generate_template(question, context)
-
-    def _generate_gpt2(self, question, context, tokenizer, model, device, max_length=128):
-        try:
-            import torch
-
-            context_snippet = context[:500] if context else ""
-
-            input_text = f"Context: {context_snippet}\nQuestion: {question}\nAnswer:"
-
-            encoded = tokenizer(
-                input_text,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=max_length,
-            )
-
-            input_ids = encoded["input_ids"].to(device)
-            attention_mask = encoded["attention_mask"].to(device)
-
-            with torch.no_grad():
-                generated_ids = model.generate(
-                    input_ids,
-                    attention_mask=attention_mask,
-                    max_new_tokens=150,
-                    min_new_tokens=20,
-                    pad_token_id=tokenizer.eos_token_id,
-                    do_sample=True,
-                    top_k=50,
-                    top_p=0.95,
-                    temperature=0.9,
-                    num_return_sequences=1,
-                )
-
-            generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-
-            if "Answer:" in generated_text:
-                answer = generated_text.split("Answer:")[-1].strip()
-            else:
-                answer = generated_text.strip()
-
-            answer = re.sub(r"\n{3,}", "\n\n", answer).strip()
-
-            parts = answer.split(".")
-            seen, deduped = set(), []
-
-            for p in parts:
-                key = p.strip().lower()
-                if key and key not in seen:
-                    seen.add(key)
-                    deduped.append(p)
-
-            answer = ".".join(deduped).strip()
-
-            print(f"[INFO] Generated answer: '{answer}'")
-
-            return answer if answer else self._generate_template(question, context)
-
-        except Exception as e:
-            print(f"[ERROR] GPT-2 generation failed: {e}")
-            return self._generate_template(question, context)
+    
 
     def _generate_template(self, question: str, context: str) -> str:
         if not context.strip():
