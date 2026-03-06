@@ -1,4 +1,5 @@
 
+import logging
 import os
 import uuid
 import json
@@ -6,6 +7,14 @@ from flask import Flask, g, jsonify, render_template, request, session
 
 from data_processor import DataProcessor
 from db import Database
+from rag_pipeline import run_rag_pipeline
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "syunik-secret-key-change-in-production")
@@ -62,26 +71,21 @@ def chat_api():
     user_message = data["message"].strip()
     db = get_db()
 
-    # Step 1 – embed
-    question_embedding = processor.embed_text(user_message)
+    logger.info("Received chat message: %s", user_message)
 
-    # Step 2 – retrieve
-    similar_chunks = db.get_similar_chunks(question_embedding, top_k=10)
-    print(similar_chunks)
-    context = "\n\n".join([c["text"] for c in similar_chunks])
-    print(f"[INFO] Context: {context}")
-    print(50*"_")
-    # Step 3 – generate
-    answer = processor.generate_answer(user_message, context)
+    # Run full RAG pipeline (embedding → retrieval → context → ASSISTANT)
+    answer, chunks = run_rag_pipeline(user_message, top_k=5)
 
     # Persist conversation
     session_id = session.get("session_id", str(uuid.uuid4()))
     db.save_conversation(session_id, user_message, answer)
 
-    return jsonify({
-        "reply": answer,
-        "sources": [c["source"] for c in similar_chunks if c.get("source")],
-    })
+    return jsonify(
+        {
+            "reply": answer,
+            "sources": [c["source"] for c in chunks if c.get("source")],
+        }
+    )
 
 
 # ── Run ────────────────────────────────────────────────────────────

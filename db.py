@@ -127,8 +127,10 @@ class Database:
                  "Summer (June–August) is ideal for hiking. Spring brings wildflowers and waterfalls. "
                  "Winters are cold and snowy, especially in higher-altitude towns like Kajaran and Dastakert.", "seed"),
             ]
+
             # We'll let app.py handle embedding these via /api/ingest or startup seeding
             # Store as plain text chunks without embeddings (init will embed them)
+
             for text, source in syunik_facts:
                 conn.execute(
                     "INSERT INTO chunks (text, embedding, source) VALUES (?, ?, ?)",

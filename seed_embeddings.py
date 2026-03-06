@@ -1,4 +1,10 @@
 import os
+import sys
+import glob
+import sqlite3
+import torch
+
+# ── Performance constraints ───────────────────────────────────────────────────
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -6,132 +12,143 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-import torch
 torch.set_num_threads(1)
-import sys
-import glob
-import json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# ── Imports ───────────────────────────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
 
 from db import Database
 from data_processor import DataProcessor
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/FINAL")
-print(f"[INFO] Data directory: '{DATA_DIR}'")
+# ── Paths ─────────────────────────────────────────────────────────────────────
+DATA_DIR = os.path.join(BASE_DIR, "data", "FINAL")
 
+print(f"[INFO] Data directory: {DATA_DIR}")
+
+# ── Initialize services ───────────────────────────────────────────────────────
 db = Database()
 processor = DataProcessor()
+
 print("[INFO] Database and DataProcessor initialized.")
 
-
-
+# ── Clear existing chunks ─────────────────────────────────────────────────────
 def clear_chunks():
-    """Remove all existing chunk embeddings."""
-    import sqlite3
-    conn = sqlite3.connect(db.db_path)
-    conn.execute("DELETE FROM chunks")
-    conn.commit()
-    conn.close()
-    print("[INFO] Cleared existing chunks.")
+    """Remove all existing chunk embeddings to prevent duplicates."""
+    try:
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM chunks")
+        conn.commit()
+        conn.close()
+
+        print("[INFO] Existing chunks cleared.")
+
+    except Exception as e:
+        print(f"[ERROR] Failed clearing chunks: {e}")
 
 
+# ── Seed from TXT files ───────────────────────────────────────────────────────
 def seed_from_txt_files(txt_files):
-    """Chunk, embed, and store all .txt files from data/."""
+
     total_chunks = 0
+
     for filepath in txt_files:
+
         filename = os.path.basename(filepath)
-        print(f"[INFO] Processing '{filename}' ...", end=" ", flush=True)
+        print(f"[INFO] Processing: {filename}")
+
         try:
-            chunks = processor.chunk_file(filepath, chunk_size=300, overlap=50)
-            for chunk in chunks:
-                emb = processor.embed_text(chunk)
+
+            chunks = processor.chunk_file(
+                filepath,
+                chunk_size=500,
+                overlap=50
+            )
+
+            # Clean chunks
+            chunks = [str(c).strip() for c in chunks if str(c).strip()]
+
+            if not chunks:
+                print("  -> no valid chunks")
+                continue
+
+            # Batch embed
+            embeddings = processor.embed_batch(chunks)
+
+            for chunk, emb in zip(chunks, embeddings):
                 db.save_chunk(chunk, emb, source=filename)
-            print(f"{len(chunks)} chunks embedded.")
+
             total_chunks += len(chunks)
+
+            print(f"  -> stored {len(chunks)} chunks")
+
         except Exception as e:
-            print(f"ERROR — {e}")
+            print(f"[ERROR] Failed processing {filename}: {e}")
 
     print(f"\n[OK] Seeded {total_chunks} chunks from {len(txt_files)} file(s).")
 
 
+# ── Built-in fallback knowledge ───────────────────────────────────────────────
 def seed_builtin():
-    """Fallback: seed hardcoded Syunik knowledge base."""
+
     SYUNIK_KNOWLEDGE = [
-        ("Tatev Monastery is a 9th-century Armenian monastery on a basalt promontory above "
-         "the Vorotan Gorge in Syunik Province. It was an important center of learning and "
-         "science in medieval Armenia.", "tatev"),
 
-        ("The Wings of Tatev is the world's longest non-stop double track cable car at 5.7 km. "
-         "It holds a Guinness World Record and connects Halidzor to Tatev Monastery, "
-         "with breathtaking views during the ~11-minute ride.", "tatev"),
+        ("Tatev Monastery is a 9th century Armenian Apostolic monastery located in Syunik Province on a large basalt plateau near the village of Tatev.", "tatev_monastery"),
 
-        ("Zorats Karer (Karahunj / Armenian Stonehenge) near Sisian dates to ~5,500 years ago. "
-         "Over 200 standing stones are arranged in a circular pattern believed to be "
-         "an ancient astronomical observatory.", "sisian"),
+        ("Wings of Tatev is the longest reversible aerial tramway in the world with a length of 5752 meters connecting Halidzor village to Tatev Monastery.", "wings_of_tatev"),
 
-        ("Shaki Waterfall is an 18-metre cascade near Sisian surrounded by basalt columns. "
-         "Located about 6 km from the city, it is a popular day-trip destination.", "sisian"),
+        ("Mount Khustup is a mountain near the city of Kapan in Syunik Province with an elevation of 3201 meters and is the burial site of Armenian national hero Garegin Nzhdeh.", "khustup"),
 
-        ("Old Khndzoresk is a cave village in a deep gorge, inhabited until the 1950s. "
-         "A famous 160-metre swinging suspension bridge lets visitors explore the site.", "khndzoresk"),
+        ("Shaki Waterfall is an 18 meter high waterfall located near the town of Sisian in Syunik Province and is one of the most beautiful waterfalls in Armenia.", "shaki_waterfall"),
 
-        ("Goris is the main city of southern Syunik at 1,370 m elevation, ~240 km from Yerevan. "
-         "Known for its Rock Forest of pyramidal rock formations and as the gateway to Tatev.", "goris"),
+        ("Old Khndzoresk is a historical cave settlement in Syunik Province where people lived in caves until the middle of the twentieth century.", "khndzoresk"),
 
-        ("Sisian is a city in Syunik at 1,600 m. Attractions: Zorats Karer, Shaki Waterfall, "
-         "Vorotnavank Monastery, and Ughtasar Petroglyphs. About 3.5–4 h from Yerevan.", "sisian"),
+        ("Zorats Karer also known as Karahunj is a prehistoric megalithic monument near Sisian consisting of hundreds of standing stones.", "karahunj"),
 
-        ("Meghri is Armenia's southernmost city at 600 m near Iran, famous for pomegranates, "
-         "figs, and olives. Key sights: Meghri Fortress, Arevik National Park. ~7–9 h from Yerevan.", "meghri"),
+        ("Meghri is a town in southern Syunik known for its warm subtropical climate and production of pomegranates figs and other fruits.", "meghri"),
 
-        ("Kajaran is a mining city at ~1,950 m. The ZCMC open-pit mine is one of the world's largest. "
-         "Nearby: Mount Kaputjugh (3,905 m, highest in Syunik) and Lake Kaputan.", "kajaran"),
+        ("Goris is a historic town in Syunik famous for its unique rock formations called the Rock Forest and its nineteenth century city layout.", "goris"),
 
-        ("Khustup Mountain rises to 3,206 m in the Zangezur range. Ascent takes 5–7 h, "
-         "with panoramic views across southern Armenia and into Iran.", "hiking"),
+        ("Arevik National Park is located in southern Syunik and protects unique ecosystems and endangered species including the Caucasian leopard.", "arevik_national_park"),
 
-        ("Arevik National Park covers 34,000 hectares in southern Syunik and is home to "
-         "the Caucasian Leopard, bezoar ibex, Armenian mouflon, and hundreds of plant species.", "nature"),
+        ("Ughtasar Petroglyphs are ancient rock carvings located at about 3300 meters altitude near Sisian and date back thousands of years.", "ughtasar_petroglyphs")
 
-        ("Ughtasar Petroglyphs are 5,000-year-old rock carvings at 3,300 m above Sisian, "
-         "depicting hunting scenes, animals, and geometric patterns. Accessible only in summer.", "sisian"),
-
-        ("Vorotan Canyon is the dramatic gorge of the Vorotan River, containing Devil's Bridge "
-         "(a natural basalt arch) and forming the setting for Tatev Monastery.", "goris"),
-
-        ("Getting to Syunik from Yerevan: Goris ~4–5 h, Sisian ~3.5–4 h, "
-         "Meghri and Agarak 7–9 h. Tatev is 30 min from Goris by car.", "transport"),
-
-        ("Best time to visit Syunik: May–October. Summer for hiking Khustup and Ughtasar. "
-         "Spring for wildflowers and waterfalls. Tatev and Zorats Karer are year-round.", "general"),
-
-        ("Agarak is Armenia's southernmost town on the Iranian border at ~600 m elevation. "
-         "Founded in 1949 for the Agarak Copper-Molybdenum Combine, ~380 km from Yerevan. "
-         "Known as the 'Southern Gate' for Armenia-Iran trade.", "agarak"),
-
-        ("Agarak's subtropical climate yields figs, olives, pomegranates, and persimmons. "
-         "Nearby: Arevik National Park, Karchevan village, Shvanidzor's 17th-c. aqueduct. "
-         "Minibuses to Yerevan depart 07:00–08:00; journey takes 7–9 h.", "agarak"),
     ]
 
-    for text, source in SYUNIK_KNOWLEDGE:
-        emb = processor.embed_text(text)
-        db.save_chunk(text, emb, source=source)
+    texts = [x[0] for x in SYUNIK_KNOWLEDGE]
+    sources = [x[1] for x in SYUNIK_KNOWLEDGE]
 
-    print(f"[OK] Seeded {len(SYUNIK_KNOWLEDGE)} built-in Syunik knowledge chunks.")
+    embeddings = processor.embed_batch(texts)
+
+    for text, emb, src in zip(texts, embeddings, sources):
+        db.save_chunk(text, emb, source=src)
+
+    print(f"[OK] Seeded {len(texts)} built-in knowledge chunks.")
 
 
+# ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+
     print("=" * 60)
     print("Syunik Travel Assistant — Knowledge Base Seeder")
     print("=" * 60)
 
+    # Initialize DB
     db.init_db()
+
+    # Clear previous embeddings
     clear_chunks()
 
+    # Find txt files
     txt_files = sorted(glob.glob(os.path.join(DATA_DIR, "*.txt")))
-    print(f"[INFO] Found {len(txt_files)} .txt file(s) in data/\n")
-    seed_from_txt_files(txt_files)
 
-    print("\nDone! Run: python app.py")
+    if not txt_files:
+        print("[WARNING] No TXT files found. Using fallback knowledge.")
+        seed_builtin()
+    else:
+        print(f"[INFO] Found {len(txt_files)} txt file(s).\n")
+        seed_from_txt_files(txt_files)
+
+    print("\n[COMPLETE] RAG knowledge base ready.")
+    print("Run: python app.py")

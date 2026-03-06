@@ -12,7 +12,7 @@ from typing import List
 import numpy as np
 from AI.model import Assistant
 
-ASSISTANT = Assistant()
+ASSISTANT = Assistant("lora_gpt2_my_v2")
 
 # ── Simple TF-IDF style embedding (no external models, no threading issues) ───
 
@@ -52,48 +52,6 @@ def _simple_embed(text: str) -> List[float]:
         vec /= norm
 
     return vec.tolist()
-
-
-# ── Lazy GPT-2 loader ─────────────────────────────────────────────────────────
-
-_gpt2_tokenizer = None
-_gpt2_model = None
-_device = None
-
-
-def _get_gpt2():
-    global _gpt2_tokenizer, _gpt2_model, _device
-
-    if _gpt2_model is None:
-        try:
-            import torch
-            torch.set_num_threads(1)
-            from transformers import GPT2Tokenizer, GPT2LMHeadModel
-
-            model_path = os.getenv("GPT2_MODEL_PATH", "gpt2")
-            print(f"[INFO] Loading GPT-2 from '{model_path}'...")
-
-            _gpt2_tokenizer = GPT2Tokenizer.from_pretrained(model_path)
-            _gpt2_tokenizer.pad_token = _gpt2_tokenizer.eos_token
-
-            _gpt2_model = GPT2LMHeadModel.from_pretrained(model_path)
-
-            _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            _gpt2_model.to(_device)
-            _gpt2_model.eval()
-
-            print(f"[INFO] GPT-2 loaded from '{model_path}' on {_device}.")
-
-        except Exception as e:
-            _gpt2_model = "unavailable"
-            print(f"[WARN] GPT-2 could not be loaded: {e}")
-
-    return (
-        (_gpt2_tokenizer, _gpt2_model, _device)
-        if _gpt2_model != "unavailable"
-        else (None, None, None)
-    )
-
 
 class DataProcessor:
 
@@ -148,29 +106,6 @@ class DataProcessor:
 
     def generate_answer(self, question: str, context: str) -> str:
         return ASSISTANT.answer_question(question=question, context=context)
-
-    
-
-    def _generate_template(self, question: str, context: str) -> str:
-        if not context.strip():
-            return (
-                "I don't have enough information to answer that question. "
-                "Please try rephrasing or ask about a different topic in Syunik."
-            )
-
-        q_words = set(re.findall(r"\w+", question.lower()))
-        sentences = re.split(r"(?<=[.!?])\s+", context)
-
-        best = context[:300]
-        best_score = 0
-
-        for sent in sentences:
-            score = len(q_words & set(re.findall(r"\w+", sent.lower())))
-            if score > best_score:
-                best_score = score
-                best = sent
-
-        return f"Based on available information: {best}"
 
     @staticmethod
     def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
