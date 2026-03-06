@@ -88,19 +88,29 @@ def generate_answer(
     tokenizer,
     question: str,
     context: str,
-    max_new_tokens: int = 64,
+    max_new_tokens: int = 100,
     temperature: float = 0.5,
 ):
     """
-    Generate answer for a given question + context using GPT-2 LoRA model
+    Generate a concise answer for a given question + context using
+    the GPT-2 LoRA model. The model is instructed to answer briefly
+    and avoid repetition.
     """
 
     model.eval()
 
     prompt = (
-        f"Context: {context}\n"
-        f"Question: {question}\n"
-        f"Answer:"
+        "You are a friendly, knowledgeable, and enthusiastic tour guide for the Syunik region of Armenia. "
+        "Answer the user's questions using ONLY the provided context. "
+        "Keep your answers concise (1-2 sentences), informative, and easy to read. "
+        "Add a touch of friendliness or delight, as if speaking to a curious traveler. "
+        "Do not repeat yourself or provide unrelated information. "
+        # "Only include locations or directions if the question specifically asks for them. "
+        "Highlight interesting historical, cultural, or natural facts whenever relevant, "
+        "and always remain accurate and helpful.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question:\n{question}\n\n"
+        "Answer:"
     )
 
     inputs = tokenizer(
@@ -131,10 +141,14 @@ def generate_answer(
     else:
         answer = decoded.strip()
 
-    # Optional: stop if model continues into next section
+    # Cut at first blank line to avoid long rambles
+    if "\n\n" in answer:
+        answer = answer.split("\n\n", 1)[0].strip()
+
+    # Optional: stop if model continues into next section markers
     for stop_token in ["\nContext:", "\nQuestion:"]:
         if stop_token in answer:
             answer = answer.split(stop_token)[0].strip()
-
+    print("Lora GPT-2 answer: ", answer)
     return answer
 # loaded_model, loaded_tokenizer = load_model_and_tokenizer(model_name="lora_gpt2_small", mode="eval")

@@ -7,7 +7,7 @@ from flask import Flask, g, jsonify, render_template, request, session
 
 from data_processor import DataProcessor
 from db import Database
-from rag_pipeline import run_rag_pipeline
+from rag_pipeline import run_rag_pipeline, run_question_rag_pipeline
 
 
 logging.basicConfig(
@@ -74,7 +74,7 @@ def chat_api():
     logger.info("Received chat message: %s", user_message)
 
     # Run full RAG pipeline (embedding → retrieval → context → ASSISTANT)
-    answer, chunks = run_rag_pipeline(user_message, top_k=5)
+    answer, chunks, _ = run_question_rag_pipeline(user_message, top_k=3)
 
     # Persist conversation
     session_id = session.get("session_id", str(uuid.uuid4()))

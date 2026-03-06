@@ -1,4 +1,6 @@
 import os
+from AI.model import Assistant  # type: ignore
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -8,11 +10,9 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 import re
 import textwrap
 import hashlib
-from typing import List
+from typing import List, Optional
 import numpy as np
-from AI.model import Assistant
 
-ASSISTANT = Assistant("lora_gpt2_my_v2")
 
 # ── Simple TF-IDF style embedding (no external models, no threading issues) ───
 
@@ -54,6 +54,12 @@ def _simple_embed(text: str) -> List[float]:
     return vec.tolist()
 
 class DataProcessor:
+
+    def __init__(self) -> None:
+        # Lazy-load the heavy LLM only when needed for generation,
+        # so embedding-only scripts (seeding, QA indexing) stay lightweight.
+        self._assistant = Assistant("lora_gpt2_my_v2")
+
 
     # ── Chunking ──────────────────────────────────────────────────────────────
 
@@ -105,7 +111,7 @@ class DataProcessor:
     # ── Generation ────────────────────────────────────────────────────────────
 
     def generate_answer(self, question: str, context: str) -> str:
-        return ASSISTANT.answer_question(question=question, context=context)
+        return self._assistant.answer_question(question=question, context=context)
 
     @staticmethod
     def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:

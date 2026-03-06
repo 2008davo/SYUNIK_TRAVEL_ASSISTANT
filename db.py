@@ -57,6 +57,24 @@ class Database:
                     description TEXT,
                     icon        TEXT DEFAULT '🌍'
                 );
+
+                -- Question-based RAG tables
+                CREATE TABLE IF NOT EXISTS qa_context (
+                    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                    context TEXT NOT NULL,
+                    answer  TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS qa_questions (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    question_text TEXT NOT NULL,
+                    embedding     TEXT NOT NULL,
+                    qa_id         INTEGER NOT NULL,
+                    FOREIGN KEY (qa_id) REFERENCES qa_context(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_qa_questions_qa_id
+                    ON qa_questions(qa_id);
             """)
             self._seed(conn)
 
@@ -184,11 +202,117 @@ class Database:
             scored.append({"id": row["id"], "text": row["text"], "source": row["source"], "score": sim})
 
         scored.sort(key=lambda x: x["score"], reverse=True)
+        print(len(scored))
+        print(scored[0])
+        print(50*"*")
+        print(scored)
+        print(50*"*")
+        
+        
         return scored[:top_k]
 
     def get_chunk_count(self) -> int:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+
+    # ── Question-based QA tables (for Q&A datasets) ───────────────────────────
+
+    def clear_qa_tables(self) -> None:
+        """Remove all rows from qa_questions and qa_context."""
+        with self._conn() as conn:
+            conn.execute("DELETE FROM qa_questions")
+            conn.execute("DELETE FROM qa_context")
+
+    def save_qa_pair(
+        self,
+        question_text: str,
+        context: str,
+        answer: str,
+        embedding: List[float],
+    ) -> int:
+        """
+        Insert a (question, context, answer, embedding) triple into the
+        two-table QA design and return the qa_context.id.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO qa_context (context, answer) VALUES (?, ?)",
+                (context, answer),
+            )
+            qa_id = cur.lastrowid
+
+            conn.execute(
+                "INSERT INTO qa_questions (question_text, embedding, qa_id) "
+                "VALUES (?, ?, ?)",
+                (question_text, json.dumps(embedding), qa_id),
+            )
+
+        return qa_id
+
+    def get_similar_questions(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Brute-force cosine similarity over all embedded questions.
+
+        Returns:
+            List of {id, question_text, qa_id, score}
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, question_text, embedding, qa_id "
+                "FROM qa_questions "
+                "WHERE embedding != '[]'"
+            ).fetchall()
+
+        if not rows:
+            return []
+
+        q = np.array(query_embedding, dtype=np.float32)
+        q_norm = np.linalg.norm(q)
+
+        scored: List[Dict[str, Any]] = []
+        for row in rows:
+            try:
+                vec = np.array(json.loads(row["embedding"]), dtype=np.float32)
+                v_norm = np.linalg.norm(vec)
+                sim = float(np.dot(q, vec) / (q_norm * v_norm)) if (q_norm * v_norm) else 0.0
+            except Exception:
+                sim = 0.0
+
+            scored.append(
+                {
+                    "id": row["id"],
+                    "question_text": row["question_text"],
+                    "qa_id": row["qa_id"],
+                    "score": sim,
+                }
+            )
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return scored[:top_k]
+
+    def get_qa_contexts(self, qa_ids: List[int]) -> List[Dict[str, Any]]:
+        """
+        Fetch context + answer rows for the given qa_context IDs.
+
+        The returned list preserves the order of qa_ids so that the
+        i-th item corresponds exactly to qa_ids[i].
+        """
+        if not qa_ids:
+            return []
+
+        placeholders = ",".join("?" for _ in qa_ids)
+        sql = f"SELECT id, context, answer FROM qa_context WHERE id IN ({placeholders})"
+
+        with self._conn() as conn:
+            rows = conn.execute(sql, qa_ids).fetchall()
+
+        by_id = {row["id"]: dict(row) for row in rows}
+        ordered = [by_id[i] for i in qa_ids if i in by_id]
+        return ordered
 
     # ── Conversations ─────────────────────────────────────────────────────────
 

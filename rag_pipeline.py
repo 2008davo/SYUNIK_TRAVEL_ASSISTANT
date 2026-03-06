@@ -66,6 +66,42 @@ def build_context(chunks: List[Dict[str, Any]]) -> str:
     logger.debug("Built context of length %d characters.", len(context))
     return context
 
+
+def build_qa_context(qa_items: List[Dict[str, Any]]) -> str:
+    """
+    Build a context string from (context, answer) rows in qa_context.
+
+    Format:
+        1.
+        Context:
+        ...
+
+        Answer:
+        ...
+    """
+    if not qa_items:
+        logger.warning("No QA items retrieved; using empty context.")
+        return ""
+
+    parts: List[str] = []
+    for idx, item in enumerate(qa_items, start=1):
+        ctx = item.get("context", "")
+        ans = item.get("answer", "")
+        if not ctx and not ans:
+            continue
+        parts.append(
+            f"{idx}.\nContext:\n{ctx}\n\nAnswer:\n{ans}"
+        )
+
+    context = "\n\n".join(parts)
+
+    print(50*"-"+"  context  "+50*"-")
+    print(context)
+    print(50*"-"+"  context  "+50*"-")
+    
+    logger.debug("Built QA context of length %d characters.", len(context))
+    return context
+
 def run_rag_pipeline(
     question: str,
     top_k: int = 5,
@@ -94,6 +130,56 @@ def run_rag_pipeline(
 
     logger.info("Generated answer with length %d characters.", len(answer))
     return answer, chunks
+
+
+def run_question_rag_pipeline(
+    question: str,
+    top_k: int = 1,
+) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Alternative RAG pipeline that:
+
+    1. Embeds the user question.
+    2. Retrieves the top-k most similar stored questions
+       from qa_questions (question table).
+    3. Loads the corresponding context+answer rows from qa_context.
+    4. Builds a combined context string from those rows.
+    5. Calls ASSISTANT with that context + the original question.
+
+    Returns:
+        answer: generated answer string.
+        similar_questions: rows from qa_questions.
+        qa_items: rows from qa_context used to build the context.
+    """
+    logger.info("Running question-based RAG pipeline. top_k=%d", top_k)
+
+    query_embedding = embed_question(question)
+    similar_questions = _db.get_similar_questions(query_embedding, top_k=top_k)
+
+    qa_ids = [row["qa_id"] for row in similar_questions]
+
+    print(50*"+"+"  similar_questions  "+50*"+")
+    print(similar_questions)
+    print(50*"+"+"  similar_questions  "+50*"+")
+
+    print(50*"+"+"  qa_ids  "+50*"+")
+    print(qa_ids)
+    print(50*"+"+"  qa_ids  "+50*"+")
+
+
+    
+    qa_items = _db.get_qa_contexts(qa_ids)
+
+    context = build_qa_context(qa_items)
+
+
+    print(50*"-"+"  context  "+50*"-")
+    print(context)
+    print(50*"-"+"  context  "+50*"-")
+    answer = _processor.generate_answer(question=question, context=context)
+
+    logger.info("Generated answer with length %d characters.", len(answer))
+    return answer, similar_questions, qa_items
 
 
 def generate_answer(question: str, top_k: int = 5) -> str:
