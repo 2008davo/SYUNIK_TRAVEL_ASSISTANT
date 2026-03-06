@@ -74,7 +74,7 @@ def chat_api():
     logger.info("Received chat message: %s", user_message)
 
     # Run full RAG pipeline (embedding → retrieval → context → ASSISTANT)
-    answer, chunks, _ = run_question_rag_pipeline(user_message, top_k=3)
+    answer, chunks, _ = run_question_rag_pipeline(user_message, top_k=1)
 
     # Persist conversation
     session_id = session.get("session_id", str(uuid.uuid4()))

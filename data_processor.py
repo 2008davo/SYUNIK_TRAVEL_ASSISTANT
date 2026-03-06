@@ -58,7 +58,7 @@ class DataProcessor:
     def __init__(self) -> None:
         # Lazy-load the heavy LLM only when needed for generation,
         # so embedding-only scripts (seeding, QA indexing) stay lightweight.
-        self._assistant = Assistant("lora_gpt2_my_v2")
+        self._assistant = Assistant("lora_gpt2_larg_5")
 
 
     # ── Chunking ──────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel, LoraConfig, get_peft_model, TaskType
@@ -88,67 +89,50 @@ def generate_answer(
     tokenizer,
     question: str,
     context: str,
-    max_new_tokens: int = 100,
-    temperature: float = 0.5,
+    max_new_tokens: int = 64,
+    temperature: float = 0.1,
 ):
     """
-    Generate a concise answer for a given question + context using
-    the GPT-2 LoRA model. The model is instructed to answer briefly
-    and avoid repetition.
+    Generate answer for a given question + context using GPT-2 LoRA model
     """
 
     model.eval()
 
     prompt = (
-        "You are a friendly, knowledgeable, and enthusiastic tour guide for the Syunik region of Armenia. "
-        "Answer the user's questions using ONLY the provided context. "
-        "Keep your answers concise (1-2 sentences), informative, and easy to read. "
-        "Add a touch of friendliness or delight, as if speaking to a curious traveler. "
-        "Do not repeat yourself or provide unrelated information. "
-        # "Only include locations or directions if the question specifically asks for them. "
-        "Highlight interesting historical, cultural, or natural facts whenever relevant, "
-        "and always remain accurate and helpful.\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question:\n{question}\n\n"
+        "You are a friendly assistant. Use the context to answer the question clearly and concisely.\n"
+        f"Context: {context}\n"
+        f"Question: {question}\n"
         "Answer:"
     )
 
-    inputs = tokenizer(
-        prompt,
-        return_tensors="pt",
-    )
-
+    inputs = tokenizer(prompt, return_tensors="pt")
     inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     with torch.no_grad():
         output = model.generate(
             **inputs,
             max_new_tokens=max_new_tokens,
-            do_sample=(temperature > 0),
+            do_sample=True,
             temperature=temperature,
+            top_p=0.9,
+            top_k=50,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
 
-    decoded = tokenizer.decode(
-        output[0],
-        skip_special_tokens=True,
-    )
+    decoded = tokenizer.decode(output[0], skip_special_tokens=True)
 
-    # 🔑 Extract only the answer part
-    if "Answer:" in decoded:
-        answer = decoded.split("Answer:", 1)[-1].strip()
+    # Extract answer after "Answer:" (case insensitive)
+    match = re.search(r"Answer:\s*(.*)", decoded, re.IGNORECASE | re.DOTALL)
+
+    if match:
+        answer = match.group(1).strip()
     else:
         answer = decoded.strip()
 
-    # Cut at first blank line to avoid long rambles
-    if "\n\n" in answer:
-        answer = answer.split("\n\n", 1)[0].strip()
-
-    # Optional: stop if model continues into next section markers
-    for stop_token in ["\nContext:", "\nQuestion:"]:
+    # Stop if model starts another section
+    for stop_token in ["Context:", "Question:", "Answer:"]:
         if stop_token in answer:
             answer = answer.split(stop_token)[0].strip()
-    print("Lora GPT-2 answer: ", answer)
+
     return answer
-# loaded_model, loaded_tokenizer = load_model_and_tokenizer(model_name="lora_gpt2_small", mode="eval")
